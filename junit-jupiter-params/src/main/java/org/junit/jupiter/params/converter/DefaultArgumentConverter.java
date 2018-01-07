@@ -15,7 +15,8 @@ import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static org.apiguardian.api.API.Status.INTERNAL;
 
-import java.net.URI;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,11 +26,10 @@ import java.time.OffsetTime;
 import java.time.Year;
 import java.time.YearMonth;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Currency;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -192,24 +192,45 @@ public class DefaultArgumentConverter extends SimpleArgumentConverter {
 
 	static class StringToJavaMiscConverter implements StringToObjectConverter {
 
-		private static final Map<Class<?>, Function<String, ?>> CONVERTERS;
-
-		static {
-			Map<Class<?>, Function<String, ?>> converters = new HashMap<>();
-			converters.put(URI.class, URI::create);
-			converters.put(Currency.class, Currency::getInstance);
-			converters.put(Locale.class, Locale::new);
-			CONVERTERS = Collections.unmodifiableMap(converters);
-		}
-
 		@Override
 		public boolean canConvert(Class<?> targetType) {
-			return CONVERTERS.containsKey(targetType);
+			try {
+				targetType.getConstructor(String.class);
+				return true;
+			}
+			catch (NoSuchMethodException ignored) {
+			}
+
+			return getMethod(targetType).isPresent();
 		}
 
 		@Override
 		public Object convert(String source, Class<?> targetType) throws Exception {
-			return CONVERTERS.get(targetType).apply(source);
+			try {
+				targetType.getConstructor(String.class);
+				return targetType.getConstructor(String.class).newInstance(source);
+			}
+			catch (NoSuchMethodException ignored) {
+			}
+
+			Optional<Method> method = getMethod(targetType);
+
+			if (!method.isPresent()) {
+				throw new NoSuchMethodException();
+			}
+
+			return method.get().invoke(targetType, source);
+		}
+
+		private Optional<Method> getMethod(Class<?> targetType) {
+			// @formatter:off
+			return Arrays.stream(targetType.getMethods())
+					.filter(m -> m.getParameterCount() == 1)
+					.filter(m -> m.getParameterTypes()[0].isAssignableFrom(String.class))
+					.filter(m -> m.getReturnType().isAssignableFrom(targetType))
+					.filter(m -> Modifier.isStatic(m.getModifiers()))
+					.findFirst();
+			// @formatter:on
 		}
 	}
 

@@ -12,7 +12,12 @@ package org.junit.jupiter.params.converter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,6 +30,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
@@ -33,6 +39,8 @@ import org.junit.jupiter.api.Test;
  * @since 5.0
  */
 class DefaultArgumentConverterTests {
+
+	private static final String EXAMPLE_URL = "http://junit.org/junit5/docs/current/user-guide/";
 
 	@Test
 	void isAwareOfWrapperTypesForPrimitiveTypes() {
@@ -86,18 +94,28 @@ class DefaultArgumentConverterTests {
 	}
 
 	@Test
-	void convertsStringsToURIInstances() {
-		assertConverts("http://java.sun.com/j2se/1.3/", URI.class, URI.create("http://java.sun.com/j2se/1.3/"));
+	void convertsStringsToJavaMathClassInstances() {
+		assertConverts("1", BigDecimal.class, new BigDecimal("1"));
+		assertConverts("0.199", BigDecimal.class, new BigDecimal("0.199"));
+
+		assertConverts("1", BigInteger.class, new BigInteger("1"));
 	}
 
 	@Test
-	void convertsStringsToCurrencyInstances() {
+	void convertsStringsToJavaNetClassInstances() throws URISyntaxException, MalformedURLException {
+		assertConverts(EXAMPLE_URL, URI.class, URI.create(EXAMPLE_URL));
+		assertConverts(EXAMPLE_URL, URI.class, new URI(EXAMPLE_URL));
+
+		assertConverts(EXAMPLE_URL, URL.class, new URL(EXAMPLE_URL));
+	}
+
+	@Test
+	void convertsStringsToJavaUtilClassInstances() {
 		assertConverts("JPY", Currency.class, Currency.getInstance("JPY"));
-	}
-
-	@Test
-	void convertsStringsToLocaleInstances() {
 		assertConverts("en", Locale.class, new Locale("en"));
+
+		UUID uuid = UUID.randomUUID();
+		assertConverts(uuid.toString(), UUID.class, UUID.fromString(uuid.toString()));
 	}
 
 	private void assertConverts(Object input, Class<?> targetClass, Object expectedOutput) {
